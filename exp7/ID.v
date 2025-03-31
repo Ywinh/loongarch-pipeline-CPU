@@ -12,19 +12,32 @@ module ID(
     input wire exe_allow_in,
     output wire id_allow_in,
     input wire if_to_id_valid,
-    output wire id_to_exe_valid
+    output wire id_to_exe_valid,
+
+    // hazard detection
+    input wire exe_valid,
+    input wire exe_rf_we,
+    input wire [4:0] exe_rf_waddr,
+
+    input wire mem_valid,
+    input wire mem_rf_we,
+    input wire [4:0] mem_rf_waddr,
+
+    input wire wb_valid
 );
 // pipeline control
 reg id_valid;
-wire id_ready_go = 1; // 译码、读寄存器堆都是一拍之内一定可以完成的,  所以译码阶段的 ready_go 信号恒为 1
-
+// wire id_ready_go; 
 assign id_to_exe_valid = id_valid && id_ready_go;
 assign id_allow_in = !id_valid || (id_ready_go && exe_allow_in); //允许进入：当前流水级为空，或者当前流水级的东西下一周期可以流走（下一周期空了）
 
 always @(posedge clk) begin
     if(reset) begin
         id_valid <= 1'b0;
-    end else if(id_allow_in) begin
+    end else if(br_cancle) begin // 上一周期计算出br_cancle，他是wire，下一周期还能保持吗
+        id_valid <= 1'b0;
+    end 
+    else if(id_allow_in) begin
         id_valid <= if_to_id_valid; // allow_in 说明该级流水线下一周期就要流走了
     end
 end
@@ -46,14 +59,16 @@ assign {
     id_pc
 } = id_reg;
 
-// id_to_if_bus
+// output id_to_if_bus
 // 1 + 32 = 33
 wire        br_taken;
 wire [31:0] br_target;
+wire br_cancle;
 
 assign id_to_if_bus = {
     br_taken,
-    br_target
+    br_target,
+    br_cancle
 };
 
 // output id_to_exe_bus: pc, rj_value, imm, rkd_value, mem_we(MEM), res_from_mem(MEM)
@@ -243,7 +258,7 @@ assign src2_is_imm   = inst_slli_w |
     
 assign res_from_mem  = inst_ld_w;
 assign dst_is_r1     = inst_bl;
-assign gr_we         = ~inst_st_w & ~inst_beq & ~inst_bne & ~inst_b; // error: bl need write reg
+assign gr_we         = id_valid && (~inst_st_w & ~inst_beq & ~inst_bne & ~inst_b) && |(dest); // 需要id_valid？ 如果dest为0，不写入
 assign mem_we        = inst_st_w;
 assign dest          = dst_is_r1 ? 5'd1 : rd;
 
@@ -272,5 +287,30 @@ assign br_taken = (   inst_beq  &&  rj_eq_rd
                   ) && id_valid;
 assign br_target = (inst_beq || inst_bne || inst_bl || inst_b) ? (id_pc + br_offs) :
                                                    /*inst_jirl*/ (rj_value + jirl_offs);
+
+assign br_cancle = id_valid && id_ready_go && br_taken;
+
+// hazard detection
+wire rf_raddr1_valid; // src is rj
+wire rf_raddr2_valid; // src is rk || rd
+assign rf_raddr1_valid = id_valid && (!inst_b && !inst_bl && !inst_lu12i_w);
+assign rf_raddr2_valid = id_valid && (inst_add_w || inst_sub_w || inst_slt 
+                                    || inst_sltu || inst_and || inst_or 
+                                    || inst_nor || inst_xor || inst_st_w 
+                                    || inst_beq || inst_bne); //st需要读出rd寄存器， beq和bne需要比较rj和ed寄存器的值
+
+wire rf_raddr1_hazard;
+wire rf_raddr2_hazard;
+assign rf_raddr1_hazard = (rf_raddr1_valid && ((exe_valid && exe_rf_we && (exe_rf_waddr == rf_raddr1))
+                                            || (mem_valid && mem_rf_we && (mem_rf_waddr == rf_raddr1))
+                                            || (wb_valid && wb_rf_we && (wb_rf_waddr == rf_raddr1))
+                                            ));
+assign rf_raddr2_hazard = (rf_raddr2_valid && ((exe_valid && exe_rf_we && (exe_rf_waddr == rf_raddr2))
+                                            || (mem_valid && mem_rf_we && (mem_rf_waddr == rf_raddr2))
+                                            || (wb_valid && wb_rf_we && (wb_rf_waddr == rf_raddr2))
+                                            ));
+
+wire id_ready_go = ~(rf_raddr1_hazard || rf_raddr2_hazard);
+
 
 endmodule //ID

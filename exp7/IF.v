@@ -24,10 +24,12 @@ module IF(
 // input id_to_if_bus
 wire [31:0] br_target;
 wire        br_taken;
+wire        br_cancle;
 
 assign {
     br_taken,
-    br_target
+    br_target,
+    br_cancle
 } = id_to_if_bus;
 
 // output if_to_id_bus
@@ -45,12 +47,14 @@ wire if_allow_in;
 wire if_ready_go;
 wire pre_if_valid;
 
-// 下面这段是什么意思？
+// pre-if 和 if 阶段的 valid
 always @(posedge clk) begin
     if(reset) begin
         if_valid <= 1'b0;
     end else if(if_allow_in) begin
         if_valid <= pre_if_valid; // if级只要allow_in，可以源源不断
+    end else if(br_cancle) begin
+        if_valid <= 1'b0;
     end
 end
 

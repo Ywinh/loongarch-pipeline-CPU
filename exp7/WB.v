@@ -15,13 +15,20 @@ module WB(
     output wire [31:0] debug_wb_pc,
     output wire [ 3:0] debug_wb_rf_we,
     output wire [ 4:0] debug_wb_rf_wnum,
-    output wire [31:0] debug_wb_rf_wdata
+    output wire [31:0] debug_wb_rf_wdata,
+
+    // hazard
+    output wire gr_we,
+    output reg wb_valid,
+    output wire [4:0] dest
 );
 // pipeline control
-reg wb_valid;
+// reg wb_valid;
 wire wb_ready_go = 1'b1;
+wire wb_to_id_valid;
 
-assign wb_allow_in = !wb_valid || (wb_ready_go && mem_to_wb_valid);
+assign wb_allow_in = !wb_valid || (wb_ready_go);
+assign wb_to_id_valid = wb_valid && wb_ready_go;
 
 always @(posedge clk) begin
     if(reset) begin
@@ -34,8 +41,9 @@ end
 // pipeline reg 
 // wb_to_id_bus 
 // 1 + 5 + 32 + 32 = 70
-wire gr_we;
-wire [4:0] dest;
+
+// wire gr_we;
+// wire [4:0] dest;
 wire [31:0] final_result;
 wire [31:0] wb_pc;
 
@@ -64,7 +72,7 @@ assign wb_to_id_bus = {
 };
 
 // WB stage
-assign rf_we    = gr_we;
+assign rf_we    = wb_to_id_valid ? gr_we : 1'b0;
 assign rf_waddr = dest;
 assign rf_wdata = final_result;
 

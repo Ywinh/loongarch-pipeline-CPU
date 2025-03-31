@@ -5,7 +5,7 @@
 `define EXE_TO_MEM_BUS_WIDTH 71
 `define MEM_TO_WB_BUS_WIDTH 70
 
-`define ID_TO_IF_BUS_WIDTH 33
+`define ID_TO_IF_BUS_WIDTH 34
 `define WB_TO_ID_BUS_WIDTH 38
 
 `endif

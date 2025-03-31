@@ -13,10 +13,15 @@ module MEM(
     input wire wb_allow_in,
     output wire mem_allow_in,
     input wire exe_to_mem_valid,
-    output wire mem_to_wb_valid
+    output wire mem_to_wb_valid,
+
+    // hazard
+    output wire gr_we,
+    output reg mem_valid,
+    output wire [4:0] dest
 );
 // pipeline control
-reg mem_valid;
+// reg mem_valid;
 wire mem_ready_go = 1'b1;
 
 assign mem_to_wb_valid = mem_valid && mem_ready_go;
@@ -43,8 +48,8 @@ wire [31:0] alu_result;
 wire [31:0] final_result;
 
 wire res_from_mem;
-wire gr_we;
-wire [4:0] dest;
+// wire gr_we;
+// wire [4:0] dest;
 wire [31:0] mem_pc;
 
 assign {

@@ -17,10 +17,15 @@ module EXE(
     output wire        data_sram_en,
     output wire [3:0]  data_sram_we,
     output wire [31:0] data_sram_addr,
-    output wire [31:0] data_sram_wdata
+    output wire [31:0] data_sram_wdata,
+
+    // hazard
+    output wire gr_we,
+    output reg exe_valid,
+    output wire [4:0] dest
 );
 // pipeline control
-reg exe_valid;
+// reg exe_valid;
 
 wire exe_ready_go = 1'b1;
 
@@ -46,8 +51,8 @@ wire src1_is_pc;
 wire src2_is_imm;
 wire mem_we;
 wire res_from_mem;
-wire gr_we;
-wire [4:0] dest;
+// wire gr_we;
+// wire [4:0] dest;
 
 reg [`ID_TO_EXE_BUS_WIDTH-1:0] exe_reg;
 
@@ -74,6 +79,8 @@ assign {
 
 // output exe_to_mem_bus
 //  32 + 1 + 1 + 5 + 32 = 71
+wire [31:0] alu_result;
+
 assign exe_to_mem_bus = {
     alu_result,
     res_from_mem,
@@ -85,7 +92,6 @@ assign exe_to_mem_bus = {
 // EXE stage
 wire [31:0] alu_src1;
 wire [31:0] alu_src2;
-wire [31:0] alu_result;
 
 assign alu_src1 = src1_is_pc  ? exe_pc[31:0] : rj_value;
 assign alu_src2 = src2_is_imm ? imm : rkd_value;
