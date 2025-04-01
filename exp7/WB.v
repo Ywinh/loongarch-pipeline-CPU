@@ -18,9 +18,7 @@ module WB(
     output wire [31:0] debug_wb_rf_wdata,
 
     // hazard
-    output wire gr_we,
-    output reg wb_valid,
-    output wire [4:0] dest
+    output reg wb_valid
 );
 // pipeline control
 // reg wb_valid;
@@ -42,8 +40,8 @@ end
 // wb_to_id_bus 
 // 1 + 5 + 32 + 32 = 70
 
-// wire gr_we;
-// wire [4:0] dest;
+wire gr_we;
+wire [4:0] dest;
 wire [31:0] final_result;
 wire [31:0] wb_pc;
 

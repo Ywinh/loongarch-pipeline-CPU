@@ -7,6 +7,9 @@ module EXE(
     input [`ID_TO_EXE_BUS_WIDTH-1:0] id_to_exe_bus,
     output [`EXE_TO_MEM_BUS_WIDTH-1:0] exe_to_mem_bus,
 
+    // bypass
+    output [`EXE_TO_ID_BYPASS_WIDTH-1:0] exe_to_id_bypass_bus,
+
     // pipeline control
     input wire mem_allow_in,
     output wire exe_allow_in,
@@ -20,9 +23,7 @@ module EXE(
     output wire [31:0] data_sram_wdata,
 
     // hazard
-    output wire gr_we,
-    output reg exe_valid,
-    output wire [4:0] dest
+    output reg exe_valid
 );
 // pipeline control
 // reg exe_valid;
@@ -42,6 +43,7 @@ end
 
 // pipeline reg 
 // id_to_exe_bus
+// 32 + 32 + 32 + 32 + 12 + 1 + 1 + 1 + 1 + 1 + 5 + 1 = 
 wire [31:0] exe_pc;
 wire [31:0] rj_value;
 wire [31:0] imm;
@@ -51,8 +53,9 @@ wire src1_is_pc;
 wire src2_is_imm;
 wire mem_we;
 wire res_from_mem;
-// wire gr_we;
-// wire [4:0] dest;
+wire res_until_mem;
+wire gr_we;
+wire [4:0] dest;
 
 reg [`ID_TO_EXE_BUS_WIDTH-1:0] exe_reg;
 
@@ -73,12 +76,13 @@ assign {
     mem_we,
     res_from_mem,
     gr_we,
-    dest
+    dest,
+    res_until_mem
 } = exe_reg;
 
 
 // output exe_to_mem_bus
-//  32 + 1 + 1 + 5 + 32 = 71
+//  32 + 1 + 1 + 5 + 32 + 1 = 72
 wire [31:0] alu_result;
 
 assign exe_to_mem_bus = {
@@ -87,6 +91,15 @@ assign exe_to_mem_bus = {
     gr_we,
     dest,
     exe_pc
+};
+
+// bypass exe_to_id_bus
+// 1 + 32 + 1 + 5 = 39
+assign exe_to_id_bypass_bus = {
+    res_until_mem,
+    alu_result,
+    gr_we,
+    dest
 };
 
 // EXE stage

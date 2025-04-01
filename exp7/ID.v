@@ -8,6 +8,10 @@ module ID(
     output [`ID_TO_EXE_BUS_WIDTH-1:0] id_to_exe_bus,
     output [`ID_TO_IF_BUS_WIDTH-1:0] id_to_if_bus,
 
+    // bypass
+    input [`EXE_TO_ID_BYPASS_WIDTH-1:0] exe_to_id_bypass_bus,
+    input [`MEM_TO_ID_BYPASS_WIDTH-1:0] mem_to_id_bypass_bus,
+
     // pipeline control
     input wire exe_allow_in,
     output wire id_allow_in,
@@ -16,18 +20,14 @@ module ID(
 
     // hazard detection
     input wire exe_valid,
-    input wire exe_rf_we,
-    input wire [4:0] exe_rf_waddr,
-
     input wire mem_valid,
-    input wire mem_rf_we,
-    input wire [4:0] mem_rf_waddr,
-
     input wire wb_valid
 );
 // pipeline control
 reg id_valid;
-// wire id_ready_go; 
+wire id_ready_go; 
+wire br_cancle;
+
 assign id_to_exe_valid = id_valid && id_ready_go;
 assign id_allow_in = !id_valid || (id_ready_go && exe_allow_in); //允许进入：当前流水级为空，或者当前流水级的东西下一周期可以流走（下一周期空了）
 
@@ -63,7 +63,6 @@ assign {
 // 1 + 32 = 33
 wire        br_taken;
 wire [31:0] br_target;
-wire br_cancle;
 
 assign id_to_if_bus = {
     br_taken,
@@ -83,6 +82,7 @@ wire [4: 0] dest;
 wire [31:0] rj_value;
 wire [31:0] rkd_value;
 wire [31:0] imm;
+wire        res_until_mem; // 在mem阶段才能得到指令的执行结果
 
 assign id_to_exe_bus = {
     id_pc,
@@ -95,7 +95,8 @@ assign id_to_exe_bus = {
     mem_we,
     res_from_mem,
     gr_we,
-    dest
+    dest,
+    res_until_mem
 };
 
 // wb_to_id_bus:
@@ -255,7 +256,8 @@ assign src2_is_imm   = inst_slli_w |
                        inst_lu12i_w|
                        inst_jirl   |
                        inst_bl     ;
-    
+
+assign res_until_mem = inst_ld_w;
 assign res_from_mem  = inst_ld_w;
 assign dst_is_r1     = inst_bl;
 assign gr_we         = id_valid && (~inst_st_w & ~inst_beq & ~inst_bne & ~inst_b) && |(dest); // 需要id_valid？ 如果dest为0，不写入
@@ -275,8 +277,7 @@ regfile u_regfile(
     .wdata  (wb_rf_wdata)
     );
 
-assign rj_value  = rf_rdata1;
-assign rkd_value = rf_rdata2;
+
 
 assign rj_eq_rd = (rj_value == rkd_value);
 assign br_taken = (   inst_beq  &&  rj_eq_rd
@@ -290,6 +291,20 @@ assign br_target = (inst_beq || inst_bne || inst_bl || inst_b) ? (id_pc + br_off
 
 assign br_cancle = id_valid && id_ready_go && br_taken;
 
+
+// bypass
+wire exe_res_until_mem;
+wire exe_rf_we;
+wire [4:0] exe_rf_waddr;
+wire [31:0] exe_rf_wdata;
+
+wire mem_rf_we;
+wire [4:0] mem_rf_waddr;
+wire [31:0] mem_rf_wdata;
+
+assign {exe_res_until_mem, exe_rf_wdata, exe_rf_we, exe_rf_waddr} = exe_to_id_bypass_bus;
+assign {mem_rf_wdata, mem_rf_we, mem_rf_waddr} = mem_to_id_bypass_bus;
+
 // hazard detection
 wire rf_raddr1_valid; // src is rj
 wire rf_raddr2_valid; // src is rk || rd
@@ -299,18 +314,20 @@ assign rf_raddr2_valid = id_valid && (inst_add_w || inst_sub_w || inst_slt
                                     || inst_nor || inst_xor || inst_st_w 
                                     || inst_beq || inst_bne); //st需要读出rd寄存器， beq和bne需要比较rj和ed寄存器的值
 
-wire rf_raddr1_hazard;
-wire rf_raddr2_hazard;
-assign rf_raddr1_hazard = (rf_raddr1_valid && ((exe_valid && exe_rf_we && (exe_rf_waddr == rf_raddr1))
-                                            || (mem_valid && mem_rf_we && (mem_rf_waddr == rf_raddr1))
-                                            || (wb_valid && wb_rf_we && (wb_rf_waddr == rf_raddr1))
-                                            ));
-assign rf_raddr2_hazard = (rf_raddr2_valid && ((exe_valid && exe_rf_we && (exe_rf_waddr == rf_raddr2))
-                                            || (mem_valid && mem_rf_we && (mem_rf_waddr == rf_raddr2))
-                                            || (wb_valid && wb_rf_we && (wb_rf_waddr == rf_raddr2))
-                                            ));
+assign rf_raddr1_hazard = (rf_raddr1_valid && ((exe_valid && exe_rf_we && (exe_rf_waddr == rf_raddr1))));
+assign rf_raddr2_hazard = (rf_raddr2_valid && ((exe_valid && exe_rf_we && (exe_rf_waddr == rf_raddr2))));
 
-wire id_ready_go = ~(rf_raddr1_hazard || rf_raddr2_hazard);
+assign id_ready_go = ~((rf_raddr1_hazard || rf_raddr2_hazard) && exe_valid && exe_res_until_mem);
 
+// bypass
+assign rj_value  =  (exe_valid && exe_rf_we && (exe_rf_waddr == rf_raddr1)) ? exe_rf_wdata:
+                    (mem_valid && mem_rf_we && (mem_rf_waddr == rf_raddr1)) ? mem_rf_wdata:
+                    (wb_valid && wb_rf_we && (wb_rf_waddr == rf_raddr1)) ? wb_rf_wdata:
+                    rf_rdata1;
+
+assign rkd_value =  (exe_valid && exe_rf_we && (exe_rf_waddr == rf_raddr2)) ? exe_rf_wdata:
+                    (mem_valid && mem_rf_we && (mem_rf_waddr == rf_raddr2)) ? mem_rf_wdata:
+                    (wb_valid && wb_rf_we && (wb_rf_waddr == rf_raddr2)) ? wb_rf_wdata:
+                    rf_rdata2;
 
 endmodule //ID

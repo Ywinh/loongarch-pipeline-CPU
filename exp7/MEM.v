@@ -3,8 +3,12 @@ module MEM(
     input clk,
     input reset,
 
+    // bus
     input [`EXE_TO_MEM_BUS_WIDTH-1:0] exe_to_mem_bus,
     output [`MEM_TO_WB_BUS_WIDTH-1:0] mem_to_wb_bus,
+
+    // bypass
+    output [`MEM_TO_ID_BYPASS_WIDTH-1:0] mem_to_id_bypass_bus,
 
     //data bram interface
     input  wire [31:0] data_sram_rdata,
@@ -16,9 +20,7 @@ module MEM(
     output wire mem_to_wb_valid,
 
     // hazard
-    output wire gr_we,
-    output reg mem_valid,
-    output wire [4:0] dest
+    output reg mem_valid
 );
 // pipeline control
 // reg mem_valid;
@@ -48,8 +50,8 @@ wire [31:0] alu_result;
 wire [31:0] final_result;
 
 wire res_from_mem;
-// wire gr_we;
-// wire [4:0] dest;
+wire gr_we;
+wire [4:0] dest;
 wire [31:0] mem_pc;
 
 assign {
@@ -67,6 +69,14 @@ assign mem_to_wb_bus = {
     dest,
     final_result,
     mem_pc
+};
+
+// bypass mem_to_id_bus
+// 32 + 1 + 5 = 38
+assign mem_to_id_bypass_bus = {
+    final_result,
+    gr_we,
+    dest
 };
 
 // MEM stage

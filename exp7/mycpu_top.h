@@ -1,11 +1,14 @@
 `ifndef MYCPU_TOP_H
 `define MYCPU_TOP_H
 `define IF_TO_ID_BUS_WIDTH 64 // 32 + 32
-`define ID_TO_EXE_BUS_WIDTH 150
-`define EXE_TO_MEM_BUS_WIDTH 71
+`define ID_TO_EXE_BUS_WIDTH 151
+`define EXE_TO_MEM_BUS_WIDTH 72
 `define MEM_TO_WB_BUS_WIDTH 70
 
 `define ID_TO_IF_BUS_WIDTH 34
 `define WB_TO_ID_BUS_WIDTH 38
+
+`define EXE_TO_ID_BYPASS_WIDTH 39
+`define MEM_TO_ID_BYPASS_WIDTH 38
 
 `endif

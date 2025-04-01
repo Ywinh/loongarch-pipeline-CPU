@@ -13,8 +13,8 @@ module IF(
     input  wire [31:0] inst_sram_rdata,
 
     // bus
-    output [`IF_TO_ID_BUS_WIDTH:0] if_to_id_bus,
-    input [`ID_TO_IF_BUS_WIDTH:0] id_to_if_bus,
+    output [`IF_TO_ID_BUS_WIDTH-1:0] if_to_id_bus,
+    input [`ID_TO_IF_BUS_WIDTH-1:0] id_to_if_bus,
 
     // pipeline 
     input id_allow_in,
